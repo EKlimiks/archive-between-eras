@@ -1,441 +1,667 @@
-const storageKey = "archive-between-eras/v1";
-
-const documents = {
-  cover: {
-    title: "Обложка дела № 17",
-    era: "1986",
-    text: "Рукописное письмо.\nОтправитель: Л. Ветрова.\nПодпись сверена. Служебного номера нет.",
-    note: "На обложке достаточно сведений, чтобы старый сортировщик выбрал ящик.",
-  },
-  rules: {
-    title: "Правила сортировки",
-    era: "1986",
-    text: "Подписанное личное письмо → Л.\nДокумент со служебным номером → С.\nНеопознанный фрагмент → Ч.",
-    note: "В 1986 году сотрудник записывал правила вручную. Сортировщик исполнял их по порядку.",
-  },
-  route: {
-    title: "Указатель ящиков",
-    era: "2086",
-    text: "Л → Личные письма\nС → Служебные записи\nЧ → Черновики",
-    note: "В стойке сохранилась копия старого указателя. Сами буквы ничего не объясняют без карточки правил.",
-  },
-  letter: {
-    title: "Письмо Лиды Ветровой",
-    era: "1986",
-    text: "Закрой окно. Вернусь в субботу. На втором этаже опять пахнет известью после дождя.\nЛида Ветрова",
-    note: "На обороте архивный штамп «Личное письмо». Отметок об адресе или номере комнаты нет.",
-  },
-  sample: {
-    title: "Исправление в выборке",
-    era: "2086",
-    text: "Фрагмент «Закрой окно. Вернусь в субботу» восстановлен как часть личного письма Лиды Ветровой.",
-    note: "Классификатор сравнивает слова из нового фрагмента с размеченными примерами. Исправление метки изменило его ответ.",
-  },
-  draft: {
-    title: "Черновик музейного ИИ",
-    era: "2086",
-    text: "Лида Ветрова собиралась вернуться в субботу. Её ждали в лаборатории № 3 на втором этаже.",
-    note: "Генеративный ИИ достроил связный рассказ. Для выставки нужно сверить, какие детали есть в оригинале.",
-  },
+const key = "archive-between-eras/v2";
+const go = (id) => document.getElementById(id);
+const dialog = go("overlay");
+const body = go("dialog-body");
+const years = { past: "1986", future: "2086" };
+const records = {
+  cover: ["Обложка дела № 17", "1986", "Отправитель: Л. Ветрова.\nПодпись сверена. Служебного номера нет."],
+  rules: ["Карточка сортировки", "1986", "Подписанное личное письмо → Л.\nДокумент со служебным номером → С.\nНеопознанная запись → Ч."],
+  index: ["Указатель ящиков", "2086", "Л → Личные письма\nС → Служебные записи\nЧ → Черновики"],
+  damage: ["Опись повреждений", "2086", "В ящике сохранился только фрагмент ◇. Парный фрагмент остался на столе приёмки в хранилище 1986 года."],
+  marks: ["Инструкция реставратора", "1986", "Верхний паз: знак ○, печать приёмки.\nНижний паз: знак ◇, отметка о подшивке.\nПеред сборкой вставить световой фильтр."],
+  letter: ["Письмо Лиды Ветровой", "1986", "Закрой окно. Вернусь в субботу. На втором этаже опять пахнет известью после дождя.\nЛида Ветрова\n\nНа обороте штамп «Личное письмо»."],
+  sample: ["Исправление в выборке", "2086", "Метка фрагмента «Закрой окно. Вернусь в субботу» исправлена на «Личное письмо»."],
+  draft: ["Черновик музейного ИИ", "2086", "Лида Ветрова собиралась вернуться в субботу. Её ждали в лаборатории № 3 на втором этаже."],
+  decision: ["Редакционная запись", "2086", "Лаборатория № 3 в письме не упоминается. Точный адрес неизвестен."],
 };
-
+const items = {
+  folder: ["▤", "Папка дела № 17"], route: ["Л", "Маршрутная карта Л"],
+  top: ["○", "Фрагмент с печатью"], bottom: ["◇", "Фрагмент из ящика"],
+  filter: ["◐", "Световой фильтр"], original: ["▤", "Оригинал письма"],
+  scan: ["▧", "Копия оригинала"], stamp: ["Л", "Метка «Личное»"],
+  label: ["▥", "Этикетка экспоната"],
+};
 const chapters = [
-  {
-    label: "Правила",
-    task: "Найди индекс письма в 1986 году и выбери его ящик в 2086 году.",
-    hint: "В прошлом осмотри Рабочий стол и Картотеку. В будущем открой Стойку хранения и сверь букву с названием ящика.",
-  },
-  {
-    label: "Примеры",
-    task: "Прочитай оригинал в прошлом, затем исправь метку учебного примера в будущем.",
-    hint: "В 1986 году оригинал лежит на Рабочем столе. Штамп на обороте поможет разобраться в Витрине примеров.",
-  },
-  {
-    label: "Источники",
-    task: "Проверь черновик на музейном терминале. Какую деталь ИИ добавил сам?",
-    hint: "Открой письмо из журнала. Найди в нём имя, день недели и этаж. Какой детали из черновика там нет?",
-  },
+  ["Сортировка", "Возьми папку, прочти карточку и передай папку сортировщику.", "В лаборатории 1986 года осмотри Рабочий стол и Картотеку. Перенеси папку из инвентаря на Сортировщик."],
+  ["Розыск", "Доставь маршрутную карту в нужный ящик хранилища 2086 года.", "В хранилище 2086 года прочти указатель на Архивной стойке. Буква на карте подскажет ящик."],
+  ["Реставрация", "Найди второй фрагмент и собери письмо на световом столе в 1986 году.", "В хранилище 1986 года проверь Стол приёмки. В мастерской возьми фильтр из Ящика инструментов и найди порядок фрагментов в Шкафу инструкций."],
+  ["Примеры", "Отсканируй письмо и исправь метку одного примера в мастерской 2086 года.", "Положи оригинал на Сканер. Перенеси метку на пример, который дословно совпадает с фрагментом письма."],
+  ["Проверка", "Возьми копию к терминалу в лабораторию 2086 года. Найди деталь, для которой нет источника.", "Открой Терминал ИИ и прочти черновик. Приложи копию оригинала к утверждению, которого в письме нет."],
+  ["Выставка", "Установи этикетку в одну из витрин хранилища 2086 года.", "Выбери, показать ли только письмо или поставить рядом помеченный черновик."],
 ];
-
 const rooms = {
-  past: {
-    name: "Лаборатория архива",
-    year: "1986",
-    objects: [
-      { id: "desk", name: "Рабочий стол", icon: "▤", x: 25, y: 65 },
-      { id: "sorter", name: "Сортировщик", icon: "⊡", x: 52, y: 45 },
-      { id: "catalog", name: "Картотека", icon: "▥", x: 80, y: 43 },
-    ],
+  lab: {
+    label: "Лаборатория",
+    past: ["Лаборатория архива", [["desk", "Рабочий стол", "▤"], ["sorter", "Сортировщик", "⊡"], ["catalog", "Картотека", "▥"]]],
+    future: ["Музейная лаборатория", [["labExhibit", "Витрина машины", "▧"], ["terminal", "Терминал ИИ", "◉"], ["registry", "Реестр источников", "▥"]]],
   },
-  future: {
-    name: "Музейное хранилище",
-    year: "2086",
-    objects: [
-      { id: "exhibit", name: "Витрина примеров", icon: "▧", x: 24, y: 64 },
-      { id: "terminal", name: "Терминал ИИ", icon: "◉", x: 52, y: 42 },
-      { id: "storage", name: "Стойка хранения", icon: "▥", x: 79, y: 43 },
-    ],
+  workshop: {
+    label: "Мастерская",
+    past: ["Реставрационная мастерская", [["toolbox", "Ящик инструментов", "▤"], ["lightTable", "Световой стол", "◐"], ["manual", "Шкаф инструкций", "▥"]]],
+    future: ["Цифровая мастерская", [["study", "Учебная витрина", "▧"], ["scanner", "Сканер", "⊡"], ["sampleRack", "Стойка примеров", "▥"]]],
+  },
+  vault: {
+    label: "Хранилище",
+    past: ["Хранилище архива", [["receipt", "Стол приёмки", "▤"], ["oldDrawers", "Архивные ящики", "▧"], ["register", "Опись фонда", "▥"]]],
+    future: ["Музейное хранилище", [["transcript", "Пульт хранителя", "◉"], ["storage", "Архивная стойка", "▥"], ["display", "Выставочная витрина", "▧"]]],
   },
 };
+const examples = [
+  ["sample14", "Закрой окно. Проверка вентиляции завершена.", "Служебная запись"],
+  ["sample17", "Закрой окно. Вернусь в субботу.", "Служебная запись"],
+  ["sample22", "Береги себя. Вернусь завтра.", "Личное письмо"],
+];
+const query = "Закрой окно. Вернусь в воскресенье.";
+const claims = [["claimName", "Лида Ветрова"], ["claimDay", "Возвращение в субботу"], ["claimFloor", "Второй этаж"], ["claimRoom", "Лаборатория № 3"]];
+const routes = {
+  folder: ["sorter"], route: ["storage", "drawerOfficial", "drawerLetters", "drawerNotes"],
+  filter: ["lightTable"], top: ["slotTop", "slotBottom"], bottom: ["slotTop", "slotBottom"],
+  original: ["scanner"], stamp: ["study", "sample14", "sample17", "sample22"],
+  scan: ["terminal", ...claims.map(([id]) => id)], label: ["display", "displaySource", "displayCompare"],
+};
+const fresh = () => ({
+  era: "past", room: "lab", stage: 0, clues: [], inventory: [],
+  lit: false, topPlaced: false, bottomPlaced: false, verdict: null,
+});
 
-const newGame = () => ({ era: "past", stage: 0, clues: [], verdict: null });
-const get = (id) => document.getElementById(id);
-const dialog = get("overlay");
-const dialogBody = get("dialog-body");
-let saveAvailable = true;
 let state = load();
-let returnFocus;
+let selected = null;
+let drag = null;
+let returnFocus = null;
 
 function load() {
   try {
-    const saved = JSON.parse(localStorage.getItem(storageKey));
-    if (saved && Object.hasOwn(rooms, saved.era) &&
-        Number.isInteger(saved.stage) && saved.stage >= 0 && saved.stage <= 4 &&
-        Array.isArray(saved.clues)) {
-      return { ...saved, clues: [...new Set(saved.clues.filter((id) => Object.hasOwn(documents, id)))] };
+    const saved = JSON.parse(localStorage.getItem(key));
+    if (saved && Object.hasOwn(rooms, saved.room) && Object.hasOwn(years, saved.era) &&
+        Number.isInteger(saved.stage) && saved.stage >= 0 && saved.stage <= chapters.length &&
+        Array.isArray(saved.clues) && Array.isArray(saved.inventory)) {
+      return { ...fresh(), ...saved,
+        clues: [...new Set(saved.clues.filter((id) => Object.hasOwn(records, id)))],
+        inventory: [...new Set(saved.inventory.filter((id) => Object.hasOwn(items, id)))],
+      };
     }
   } catch {
-    // A missing, damaged or unavailable saved game can be replaced with a fresh one.
+    // An unavailable or damaged save does not block play.
   }
-  return newGame();
+  return fresh();
 }
 
-function save() {
-  try {
-    localStorage.setItem(storageKey, JSON.stringify(state));
-    saveAvailable = true;
-  } catch {
-    saveAvailable = false;
-  }
+function make(tag, cls, content) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (content) node.textContent = content;
+  return node;
 }
 
-function make(tag, className, content) {
-  const element = document.createElement(tag);
-  if (className) element.className = className;
-  if (content) element.textContent = content;
-  return element;
+function button(label, cls, action) {
+  const node = make("button", cls, label);
+  node.type = "button";
+  if (action) node.addEventListener("click", action);
+  return node;
 }
 
-function button(label, className, action) {
-  const control = make("button", className, label);
-  control.type = "button";
-  control.addEventListener("click", action);
+function dismissButton(label) {
+  const control = button(label, "primary", () => dialog.close());
+  control.dataset.dismiss = "";
   return control;
 }
 
-function render() {
-  const room = rooms[state.era];
-  const finished = state.stage === 4;
-  document.body.dataset.era = state.era;
-  get("location").textContent = room.name;
-  get("case-number").textContent = finished ? "Дело № 17 · Завершено" : "Дело № 17 · Открыто";
-  get("save-status").textContent = saveAvailable ? "Прогресс сохраняется в этом браузере" : "Прогресс сохранится до закрытия этой вкладки";
-  document.querySelectorAll("[data-era-control]").forEach((control) => {
-    control.setAttribute("aria-pressed", String(control.dataset.eraControl === state.era));
-  });
-  get("steps").replaceChildren(...chapters.map((chapter, index) => {
-    const done = state.stage > index;
-    const step = make("li", done ? "complete" : "");
-    if (state.stage === index) step.setAttribute("aria-current", "step");
-    step.append(make("span", "step-number", done ? "✓" : String(index + 1)), make("span", "", chapter.label));
-    return step;
-  }));
-  get("hotspots").replaceChildren(...room.objects.map((item) => {
-    const hotspot = button("", "hotspot", () => inspect(item.id));
-    const marker = make("span", "marker", item.icon);
-    marker.setAttribute("aria-hidden", "true");
-    hotspot.dataset.object = item.id;
-    hotspot.style.setProperty("--x", item.x + "%");
-    hotspot.style.setProperty("--y", item.y + "%");
-    hotspot.append(marker, make("span", "hotspot-name", item.name));
-    return hotspot;
-  }));
-  get("mission-label").textContent = finished ? "Расследование завершено" : "Текущая задача";
-  get("mission").textContent = chapters[state.stage]?.task ?? (finished
-    ? "Письмо вернулось в архив вместе с проверенными сведениями."
-    : "Открой Терминал ИИ и реши, как выставить письмо.");
-  get("hint").textContent = finished ? "Финал" : "Подсказка";
-  get("clue-count").textContent = state.clues.length;
-  get("empty").hidden = state.clues.length > 0;
-  get("clues").replaceChildren(...state.clues.map((id) => {
-    const entry = documents[id];
-    const item = make("li");
-    const control = button(entry.title, "clue", () => readDocument(id));
-    control.dataset.clue = id;
-    control.append(make("span", "clue-year", entry.era));
-    item.append(control);
-    return item;
-  }));
-}
-
-function show(kicker, title, ...content) {
-  get("dialog-kicker").textContent = kicker;
-  get("dialog-title").textContent = title;
-  dialogBody.replaceChildren(...content);
-  if (!dialog.open) {
-    dialog.showModal();
-  } else {
-    dialog.querySelector(".close").focus();
-  }
-}
-
-function bookmark(id) {
+function remember(id) {
   if (!state.clues.includes(id)) state.clues.push(id);
 }
 
-function readDocument(id) {
-  const entry = documents[id];
-  bookmark(id);
-  save();
-  render();
-  show(entry.era + " · Документ", entry.title,
-    make("blockquote", "document", entry.text), make("p", "aside", entry.note));
+function status(message) {
+  go("inventory-status").textContent = message;
 }
 
-function advance(stage, kicker, title, text, actionLabel, action) {
+function update() {
+  try {
+    localStorage.setItem(key, JSON.stringify(state));
+    go("save-status").textContent = "Прогресс сохранён в этом браузере";
+  } catch {
+    go("save-status").textContent = "Прогресс сохранится до закрытия вкладки";
+  }
+  render();
+}
+
+function navigate(era, room = state.room) {
+  state.era = era;
+  state.room = room;
+  update();
+  status(selected ? "В руке: " + items[selected][1] : "Открыто помещение: " + rooms[room][era][0]);
+}
+
+function render() {
+  const [location, objects] = rooms[state.room][state.era];
+  const step = chapters[state.stage];
+  document.body.dataset.era = state.era;
+  document.body.dataset.room = state.room;
+  for (const [era, year] of Object.entries(years)) {
+    const path = "assets/" + (state.room === "lab" ? "" : state.room + "-") + year + ".webp";
+    const image = go("scene-image-" + era);
+    if (image.getAttribute("src") !== path) image.src = path;
+  }
+  go("location").textContent = location;
+  go("case-number").textContent = "Дело № 17 · " + (step?.[0] ?? "Закрыто");
+  go("mission-label").textContent = step ? "Текущая задача" : "Расследование завершено";
+  go("mission").textContent = step?.[1] ?? "Письмо выставлено. Твоя редакционная запись осталась в архиве.";
+  go("hint").textContent = step ? "Подсказка" : "Финал";
+  document.querySelectorAll("[data-era-control]").forEach((control) => {
+    control.setAttribute("aria-pressed", String(control.dataset.eraControl === state.era));
+  });
+  go("room-nav").replaceChildren(...Object.entries(rooms).map(([id, room]) => {
+    const nav = button(room.label, "room-link", () => {
+      navigate(state.era, id);
+      document.querySelector('[data-room-nav="' + id + '"]')?.focus({ preventScroll: true });
+    });
+    nav.dataset.roomNav = id;
+    nav.setAttribute("aria-pressed", String(state.room === id));
+    return nav;
+  }));
+  go("steps").replaceChildren(...chapters.map(([label], index) => {
+    const node = make("li", state.stage > index ? "complete" : "");
+    if (state.stage === index) node.setAttribute("aria-current", "step");
+    node.append(make("span", "step-number", state.stage > index ? "✓" : String(index + 1)), make("span", "", label));
+    return node;
+  }));
+  go("hotspots").replaceChildren(...objects.map(([id, name, icon], index) => {
+    const target = button("", "hotspot");
+    target.dataset.object = id;
+    target.dataset.target = id;
+    target.style.setProperty("--x", ["24%", "52%", "79%"][index]);
+    target.style.setProperty("--y", ["65%", "44%", "43%"][index]);
+    const marker = make("span", "marker", icon);
+    marker.setAttribute("aria-hidden", "true");
+    target.append(marker, make("span", "hotspot-name", name));
+    return target;
+  }));
+  go("clue-count").textContent = state.clues.length;
+  go("empty").hidden = state.clues.length > 0;
+  go("clues").replaceChildren(...state.clues.map((id) => {
+    const [title, era] = records[id];
+    const node = make("li");
+    const control = button(title, "clue", () => {
+      returnFocus = '[data-clue="' + id + '"]';
+      record(id);
+    });
+    control.dataset.clue = id;
+    control.append(make("span", "clue-year", era));
+    node.append(control);
+    return node;
+  }));
+  go("inventory-empty").hidden = state.inventory.length > 0;
+  go("inventory-items").replaceChildren(...state.inventory.map((id) => {
+    const [icon, title] = items[id];
+    const control = button("", "inventory-item");
+    control.dataset.item = id;
+    control.style.touchAction = "none";
+    const glyph = make("span", "item-icon", icon);
+    glyph.setAttribute("aria-hidden", "true");
+    control.append(glyph, make("span", "item-name", title));
+    return control;
+  }));
+  renderBench();
+  highlights();
+}
+
+function renderBench() {
+  let rows = [];
+  if (state.room === "vault" && state.era === "future" && state.stage === 1) {
+    rows = [["drawerOfficial", "С · Служебные", "Ящик"], ["drawerLetters", "Л · Личные", "Ящик"], ["drawerNotes", "Ч · Черновики", "Ящик"]];
+  } else if (state.room === "workshop" && state.era === "past" && state.stage === 2) {
+    rows = [
+      ["lightTable", "Световой стол", state.lit ? "Фильтр установлен" : "Гнездо фильтра", state.lit],
+      ["slotTop", "Верхний паз", state.topPlaced ? "○ На месте" : "Пусто", state.topPlaced],
+      ["slotBottom", "Нижний паз", state.bottomPlaced ? "◇ На месте" : "Пусто", state.bottomPlaced],
+    ];
+  } else if (state.room === "workshop" && state.era === "future" && state.stage === 3 && state.inventory.includes("stamp")) {
+    rows = examples.map(([id, text, label], index) => [id, "Пример " + (index + 1) + " · " + label, text, id === "sample22"]);
+  } else if (state.room === "lab" && state.era === "future" && state.stage === 4 && state.clues.includes("draft")) {
+    rows = claims.map(([id, label]) => [id, label, "Проверить по источнику"]);
+  } else if (state.room === "vault" && state.era === "future" && state.stage === 5) {
+    rows = [["displaySource", "Витрина письма", "Проверенные сведения"], ["displayCompare", "Витрина сравнения", "Письмо и черновик"]];
+  }
+  const bench = go("room-bench");
+  bench.replaceChildren(...rows.map(([id, title, detail, disabled]) => {
+    const control = button("", "bench-target");
+    control.dataset.target = id;
+    control.disabled = Boolean(disabled);
+    control.append(make("span", "target-name", title), make("span", "target-detail", detail));
+    return control;
+  }));
+  bench.hidden = rows.length === 0;
+}
+
+function canUse(id, target) {
+  return routes[id]?.includes(target) ?? false;
+}
+
+function highlights() {
+  document.querySelectorAll("[data-target]").forEach((node) => {
+    node.classList.toggle("drop-ready", !node.disabled && canUse(selected, node.dataset.target));
+    node.classList.remove("drop-hover");
+  });
+  document.querySelectorAll("[data-item]").forEach((control) => {
+    control.setAttribute("aria-pressed", String(selected === control.dataset.item));
+  });
+}
+
+function select(id) {
+  selected = selected === id ? null : id;
+  highlights();
+  status(selected ? "В руке: " + items[selected][1] + ". Выбери подсвеченный объект." : "Предмет возвращён в инвентарь.");
+}
+
+function show(kicker, title, ...content) {
+  go("dialog-kicker").textContent = kicker;
+  go("dialog-title").textContent = title;
+  body.replaceChildren(...content);
+  if (!dialog.open) dialog.showModal();
+  else dialog.querySelector(".close").focus();
+}
+
+function take(id) {
+  return button("Взять: " + items[id][1], "primary", () => {
+    if (!state.inventory.includes(id)) state.inventory.push(id);
+    update();
+    dialog.close();
+    status("В инвентаре: " + items[id][1] + ".");
+  });
+}
+
+function record(id, parcel) {
+  const [title, era, text] = records[id];
+  remember(id);
+  update();
+  const contents = [make("blockquote", "document", text)];
+  if (parcel && !state.inventory.includes(parcel)) contents.push(take(parcel));
+  show(era + " · Документ", title, ...contents);
+}
+
+function detail(title, text, parcel) {
+  const contents = [make("p", "", text)];
+  if (parcel) contents.push(take(parcel));
+  show(years[state.era] + " · " + rooms[state.room][state.era][0], title, ...contents);
+}
+
+function announce(title, text) {
+  show("Дело № 17 · " + (chapters[state.stage]?.[0] ?? "Закрыто"),
+    title, make("p", "", text), dismissButton("Продолжить"));
+}
+
+function consume(id, ...replacements) {
+  state.inventory = state.inventory.filter((item) => item !== id);
+  state.inventory.push(...replacements);
+  selected = null;
+}
+
+function solve(stage, title, text) {
   state.stage = stage;
-  save();
-  render();
-  show(kicker, title, make("p", "", text), button(actionLabel, "primary", action));
+  update();
+  status(title);
+  announce(title, text);
 }
 
-function choose(options, action) {
-  const controls = make("div", "choices");
-  for (const option of options) controls.append(button(option.label, "choice", () => action(option.id)));
-  return controls;
+function focusNextItem() {
+  const control = go("inventory-items").querySelector("button") ?? go("hint");
+  control.focus({ preventScroll: true });
 }
 
-function feedback() {
-  const message = make("p", "feedback");
-  message.setAttribute("role", "status");
-  return message;
-}
-
-function findDrawer() {
-  if (state.stage > 0) {
-    readDocument("route");
+function useItem(id, target) {
+  if (!state.inventory.includes(id)) return;
+  if (!canUse(id, target)) {
+    status("Здесь некуда положить «" + items[id][1] + "».");
     return;
   }
-  const route = documents.route;
-  bookmark("route");
-  save();
-  render();
-  const message = feedback();
-  show("2086 · Стойка хранения", "Найди ящик для письма",
-    make("blockquote", "document", route.text),
-    make("p", "aside", "Сопоставь обложку дела с правилами 1986 года и открой нужный ящик."),
-    choose([
-      { id: "S", label: "Служебные записи" },
-      { id: "L", label: "Личные письма" },
-      { id: "C", label: "Черновики" },
-    ], (id) => {
-      if (!state.clues.includes("cover") || !state.clues.includes("rules")) {
-        message.textContent = "Чтобы обосновать выбор, найди обложку и карточку правил в прошлом.";
-      } else if (id !== "L") {
-        message.textContent = "В этом ящике письма нет. Сверь подпись и служебный номер на обложке.";
-      } else {
-        advance(1, "Ящик Л · Найдено", "Письмо сохранилось",
-          "Указатель привёл к оригиналу. Вернись в 1986 год и прочитай его на рабочем столе.",
-          "К рабочему столу", () => {
-            state.era = "past";
-            readDocument("letter");
-          });
+  switch (id) {
+    case "folder":
+      if (!state.clues.includes("rules")) {
+        status("Сортировщику нужна карточка правил из Картотеки.");
+        return;
       }
-    }), message);
+      consume(id, "route");
+      solve(1, "Сортировщик выдал индекс Л", "У письма была подпись и не было служебного номера. Возьми выданную карту в хранилище 2086 года и приложи к нужному ящику.");
+      break;
+    case "route":
+      if (target === "storage") {
+        record("index");
+        return;
+      }
+      if (target !== "drawerLetters") {
+        status("Считыватель отклонил карту. Сверь букву с указателем ящиков.");
+        return;
+      }
+      consume(id, "bottom");
+      remember("damage");
+      solve(2, "В ящике сохранилась половина", "Фрагмент со знаком ◇ в инвентаре. В описи указано, что второй лежит на столе приёмки в хранилище 1986 года. Письмо можно собрать на световом столе в мастерской.");
+      break;
+    case "filter":
+      consume(id);
+      state.lit = true;
+      update();
+      status("Стол подсвечен. Определи порядок фрагментов по знакам.");
+      focusNextItem();
+      break;
+    case "top":
+    case "bottom": {
+      if (!state.lit) {
+        status("На тёмном столе разметку не видно. Поставь фильтр.");
+        return;
+      }
+      const top = id === "top";
+      if (target !== (top ? "slotTop" : "slotBottom")) {
+        status("Знак не совпадает с отметкой паза. Проверь инструкцию в шкафу.");
+        return;
+      }
+      consume(id);
+      if (top) state.topPlaced = true;
+      else state.bottomPlaced = true;
+      if (state.topPlaced && state.bottomPlaced) {
+        state.inventory.push("original");
+        remember("letter");
+        solve(3, "Письмо снова целое", "На обороте виден штамп «Личное письмо». Оригинал появился в инвентаре, а текст сохранился в журнале. Перенеси оригинал на сканер в мастерской 2086 года.");
+      } else {
+        update();
+        status("Фрагмент встал на место. Остался второй.");
+        focusNextItem();
+      }
+      break;
+    }
+    case "original":
+      consume(id, "scan", "stamp");
+      update();
+      status("Получены копия и метка. Подбери пример для исправления.");
+      study();
+      break;
+    case "stamp":
+      if (target === "study") {
+        study();
+        return;
+      }
+      if (target !== "sample17") {
+        status("Текст этой карточки расходится с письмом. Сверь каждую строку с оригиналом.");
+        return;
+      }
+      consume(id);
+      remember("sample");
+      solve(4, "Модель изменила ответ", "Фраза «" + query + "» раньше определялась как «" + classify(false) + "», теперь как «" + classify(true) + "». Черновик выставки ждёт на терминале в лаборатории 2086 года.");
+      break;
+    case "scan":
+      if (target === "terminal") {
+        record("draft");
+        return;
+      }
+      if (target !== "claimRoom") {
+        status("Эта деталь есть в письме. Ищи утверждение без опоры на источник.");
+        return;
+      }
+      consume(id, "label");
+      remember("decision");
+      solve(5, "Номер лаборатории не подтверждён", "Автор, суббота и второй этаж есть в оригинале. Номер комнаты добавила модель. Отнеси этикетку к выставочному столу хранилища 2086 года.");
+      break;
+    case "label":
+      if (target === "display") {
+        showDisplay();
+        return;
+      }
+      consume(id);
+      state.verdict = target;
+      state.stage = chapters.length;
+      update();
+      status("Этикетка установлена. Дело закрыто.");
+      ending();
+      break;
+  }
 }
-
-const fragment = "Закрой окно. Вернусь в субботу.";
-const examples = [
-  { id: "14", text: "Закрой окно. Проверка вентиляции завершена.", label: "Служебная запись" },
-  { id: "17", text: "Закрой окно. Вернусь в субботу.", label: "Служебная запись" },
-  { id: "22", text: "До завтра. Береги себя.", label: "Личное письмо" },
-];
 
 function words(text) {
   return new Set(text.toLowerCase().match(/[а-яё]+/gu));
 }
 
 function classify(corrected) {
-  const query = words(fragment);
-  const ranked = examples.map((example) => {
-    const terms = words(example.text);
-    const shared = [...query].filter((word) => terms.has(word)).length;
-    return { ...example, similarity: shared / new Set([...query, ...terms]).size };
-  }).sort((a, b) => b.similarity - a.similarity);
-  const nearest = ranked[0];
-  return corrected && nearest.id === "17" ? "Личное письмо" : nearest.label;
+  const terms = words(query);
+  const ranked = examples.map(([id, text, label]) => {
+    const termsInExample = words(text);
+    const common = [...terms].filter((word) => termsInExample.has(word)).length;
+    const all = new Set([...terms, ...termsInExample]).size;
+    return { label: corrected && id === "sample17" ? "Личное письмо" : label, score: common / all };
+  }).sort((left, right) => right.score - left.score);
+  return ranked[0].label;
 }
 
-function trainingExhibit() {
-  if (state.stage === 0) {
-    show("2086 · Витрина примеров", "Учебная выборка",
-      make("p", "", "Экспонат опирается на письмо из дела № 17. Сначала найди его ящик в стойке хранения."));
-    return;
+function study() {
+  const list = make("ol", "evidence");
+  for (const [id, text, label] of examples) {
+    const row = make("li", "", "«" + text + "»");
+    row.append(make("div", "sample-tag", state.stage > 3 && id === "sample17" ? "Личное письмо" : label));
+    list.append(row);
   }
-  if (state.stage > 1) {
-    readDocument("sample");
-    return;
-  }
-  const choices = make("div", "choices");
-  const message = feedback();
-  for (const example of examples) {
-    const control = button("", "choice", () => {
-      if (!state.clues.includes("letter")) {
-        message.textContent = "Открой оригинал в прошлом. На обороте есть архивная пометка.";
-      } else if (example.id !== "17") {
-        message.textContent = "Сопоставь дословный фрагмент письма с каждым учебным примером.";
-      } else {
-        bookmark("sample");
-        advance(2, "2086 · Выборка исправлена", "Ответ модели изменился",
-          "До исправления: «" + classify(false) + "». После исправления: «" + classify(true) +
-          "». Теперь музейный ИИ может подготовить описание письма.",
-          "К терминалу", auditDraft);
-      }
-    });
-    control.append(make("div", "", "«" + example.text + "»"), make("span", "sample-tag", example.label));
-    if (example.label === "Личное письмо") control.disabled = true;
-    choices.append(control);
-  }
-  show("2086 · Витрина примеров", "Исправь неверную метку",
-    make("blockquote", "document", "Запрос классификатора\n«" + fragment + "»\nОтвет: «" + classify(false) + "»."),
-    make("p", "aside", "Укажи запись, которую следует переименовать в «Личное письмо». Модель выбирает пример с наибольшей долей общих слов."),
-    choices, message);
+  show("2086 · Мастерская", "Учебная выборка",
+    make("blockquote", "document", "Запрос: «" + query + "»\nОтвет: «" + classify(state.stage > 3) + "»."),
+    make("p", "aside", state.inventory.includes("stamp")
+      ? "Примеры доступны под сценой. Поставь метку на запись, которая дословно совпадает с частью письма."
+      : "Система берёт метку примера с наибольшей долей общих слов. Для правки сначала отсканируй оригинал."),
+    list);
 }
 
-function auditDraft() {
-  if (state.stage < 2) {
-    show("2086 · Терминал ИИ", "Черновик пока закрыт",
-      make("p", "", "Система ждёт подтверждённую запись. Найди письмо и проверь его метку в Витрине примеров."));
-    return;
+function showDisplay() {
+  if (state.stage === chapters.length) {
+    ending();
+  } else {
+    detail("Выставочный стол", state.stage === 5
+      ? "Поставь этикетку в витрину письма, чтобы оставить только подтверждённое. В витрине сравнения рядом будет помеченный черновик."
+      : "Подготовь этикетку у музейного терминала, прежде чем открывать витрину.");
   }
-  if (state.stage >= 3) {
-    if (state.stage === 4) ending();
-    else publishChoice();
-    return;
-  }
-  bookmark("draft");
-  save();
-  render();
-  const message = feedback();
-  show("2086 · Терминал ИИ", "Из чего это известно?",
-    make("blockquote", "document", documents.draft.text),
-    make("p", "aside", "Сверь черновик с оригиналом в журнале. Какая деталь появилась только в сводке ИИ?"),
-    choose([
-      { id: "author", label: "Имя «Лида Ветрова»" },
-      { id: "room", label: "Лаборатория № 3" },
-      { id: "day", label: "Возвращение в субботу" },
-      { id: "floor", label: "Упоминание второго этажа" },
-    ], (id) => {
-      if (id === "room") {
-        state.stage = 3;
-        save();
-        render();
-        publishChoice();
-      } else {
-        message.textContent = "Эта деталь есть в письме. Оригинал сохранён в журнале находок.";
-      }
-    }), message);
-}
-
-function publishChoice() {
-  show("2086 · Решение архивиста", "Как выставить письмо?",
-    make("p", "", "В оригинале есть второй этаж. Номер лаборатории появился только в черновике. У письма по-прежнему нет установленного адреса."),
-    choose([
-      { id: "source", label: "Выставить письмо с проверенной подписью" },
-      { id: "side-by-side", label: "Выставить письмо рядом с отмеченным черновиком" },
-    ], (id) => {
-      state.verdict = id;
-      state.stage = 4;
-      save();
-      render();
-      ending();
-    }));
 }
 
 function ending() {
-  const outcome = state.verdict === "side-by-side"
-    ? "В витрине лежат письмо и черновик. Пометка объясняет посетителям, откуда взялся выдуманный номер лаборатории."
+  const outcome = state.verdict === "displayCompare"
+    ? "В витрине лежат письмо и помеченный черновик. Посетители видят, откуда взялся выдуманный номер комнаты."
     : "В витрине лежит письмо. На табличке указаны автор, время и источник. Графа «Адрес» осталась пустой.";
-  show("Дело № 17 · Завершено", "Письмо вернулось в архив",
+  show("Дело № 17 · Закрыто", "Письмо вернулось в архив",
     make("p", "", outcome),
     make("blockquote", "document", "Запись архивиста\n«Через сто лет у нас по-прежнему есть её слова. Этого достаточно, чтобы сохранить письмо»."),
-    button("Вернуться в архив", "primary", () => dialog.close()));
+    dismissButton("Вернуться в архив"));
 }
 
-const objects = {
-  desk: () => readDocument(state.stage < 1 ? "cover" : "letter"),
-  sorter: () => show("1986 · Сортировщик", "Программа готова",
-    make("blockquote", "document", "ВВОД: признак документа.\nВЫВОД: индекс ящика."),
-    make("p", "aside", "Машина выдаёт индекс по инструкции из Картотеки. Содержимое письма она не читает.")),
-  catalog: () => readDocument("rules"),
-  exhibit: trainingExhibit,
-  terminal: auditDraft,
-  storage: findDrawer,
+const inspect = {
+  desk: () => record(state.stage < 3 ? "cover" : "letter", state.stage === 0 ? "folder" : null),
+  catalog: () => record("rules"),
+  sorter: () => detail("Сортировщик", "Подача бумаги слева. Чтобы получить индекс ящика, положи папку на сортировщик. Карточка правил в картотеке."),
+  labExhibit: () => detail("Витрина машины", "На месте старого сортировщика осталась фотография. Новая система пишет экспозицию по оцифрованным документам."),
+  terminal: () => state.stage >= 4 ? record("draft") : detail("Терминал ИИ", "Для черновика нужна проверенная запись из цифровой мастерской."),
+  registry: () => detail("Реестр источников", "В каталоге видны документы с установленным происхождением. Выставочные описания проходят отдельную проверку."),
+  toolbox: () => {
+    const filterAvailable = state.stage === 2 && !state.lit && !state.inventory.includes("filter");
+    detail("Ящик инструментов", filterAvailable
+      ? "Круглое стекло из нижнего ящика устанавливается в гнездо светового стола."
+      : "Здесь хранят инструмент для работы с фрагментами бумаги.", filterAvailable ? "filter" : null);
+  },
+  lightTable: () => detail("Световой стол", state.lit
+    ? "Свет проходит через бумагу. Уложи верхнюю и нижнюю части в соответствующие пазы."
+    : "Круглое гнездо пустое. Поищи фильтр в ящике инструментов."),
+  manual: () => record("marks"),
+  study,
+  scanner: () => detail("Сканер", "Положи на стекло восстановленный оригинал. Сканер снимет копию письма и прочтёт штамп на обороте."),
+  sampleRack: study,
+  receipt: () => {
+    const fragmentAvailable = state.stage === 2 && !state.topPlaced && !state.inventory.includes("top");
+    detail("Стол приёмки", fragmentAvailable
+      ? "Бумага лежит на подложке, чтобы чернила не отпечатались на соседних листах. На обороте виден знак ○."
+      : "Здесь архивист ставил круглую печать перед отправкой бумаги на реставрацию.", fragmentAvailable ? "top" : null);
+  },
+  oldDrawers: () => detail("Архивные ящики", "У каждого типа документа был свой ящик. Их назначение перенесли в указатель музейного хранилища."),
+  register: () => detail("Опись фонда", "В деле № 17 записаны две части. Обложку с маршрутом хранят в лаборатории."),
+  display: showDisplay,
+  storage: () => record("index"),
+  transcript: () => state.stage > 1 ? record("damage") : detail("Пульт хранителя", "Хранилище ждёт маршрутную карту с индексом. Приложи её к ящику под сценой."),
 };
 
-function inspect(id) {
-  returnFocus = "[data-object='" + id + "']";
-  objects[id]();
+function inspectTarget(control) {
+  const target = control.dataset.target;
+  returnFocus = '[data-target="' + target + '"]';
+  if (canUse(selected, target)) useItem(selected, target);
+  else if (inspect[target]) inspect[target]();
+  else detail("Рабочее место", control.innerText.replaceAll("\n", " · ") + ". Выбери предмет в инвентаре.");
 }
 
-function switchEra(era) {
-  state.era = era;
-  save();
-  render();
+function targetAt(x, y) {
+  const control = document.elementFromPoint(x, y)?.closest("[data-target]");
+  return control && !control.disabled ? control : null;
+}
+
+function dragTarget(current) {
+  const target = targetAt(current.x, current.y);
+  const matching = target && canUse(current.id, target.dataset.target) ? target : null;
+  if (matching === current.target) return;
+  current.target?.classList.remove("drop-hover");
+  matching?.classList.add("drop-hover");
+  current.target = matching;
+}
+
+function scrollWhileDragging(current) {
+  if (drag !== current) return;
+  const margin = 52;
+  const scroll = current.y < margin ? -9 : current.y > window.innerHeight - margin ? 9 : 0;
+  if (scroll) {
+    window.scrollBy(0, scroll);
+    dragTarget(current);
+  }
+  current.frame = requestAnimationFrame(() => scrollWhileDragging(current));
+}
+
+const inventoryControl = go("inventory-items");
+inventoryControl.addEventListener("pointerdown", (event) => {
+  const item = event.target.closest("[data-item]");
+  if (!item || !event.isPrimary || event.button !== 0) return;
+  item.setPointerCapture(event.pointerId);
+  drag = { id: item.dataset.item, pointer: event.pointerId, startX: event.clientX, startY: event.clientY };
+});
+
+inventoryControl.addEventListener("pointermove", (event) => {
+  if (!drag || drag.pointer !== event.pointerId) return;
+  drag.x = event.clientX;
+  drag.y = event.clientY;
+  if (!drag.ghost && Math.hypot(drag.x - drag.startX, drag.y - drag.startY) > 6) {
+    selected = drag.id;
+    highlights();
+    const [icon, label] = items[drag.id];
+    drag.ghost = make("div", "drag-ghost");
+    drag.ghost.append(make("span", "item-icon", icon), make("span", "item-name", label));
+    drag.ghost.style.pointerEvents = "none";
+    drag.ghost.setAttribute("aria-hidden", "true");
+    document.body.append(drag.ghost);
+    document.body.classList.add("dragging-item");
+    const current = drag;
+    current.frame = requestAnimationFrame(() => scrollWhileDragging(current));
+  }
+  if (drag.ghost) {
+    drag.ghost.style.left = drag.x + "px";
+    drag.ghost.style.top = drag.y + "px";
+    dragTarget(drag);
+  }
+});
+
+function endDrag(event) {
+  if (!drag || drag.pointer !== event.pointerId) return;
+  const current = drag;
+  drag = null;
+  if (!current.ghost) return;
+  cancelAnimationFrame(current.frame);
+  current.ghost.remove();
+  current.target?.classList.remove("drop-hover");
+  document.body.classList.remove("dragging-item");
+  const target = event.type === "pointerup" ? targetAt(event.clientX, event.clientY) : null;
+  if (target) {
+    const targetId = target.dataset.target;
+    // Keep the captured button alive through the browser's touchend dispatch.
+    setTimeout(() => {
+      returnFocus = '[data-target="' + targetId + '"]';
+      useItem(current.id, targetId);
+    }, 0);
+  } else {
+    status("Предмет в руке. Перетащи его на объект или выбери объект нажатием.");
+  }
+  // A pointerup after movement can emit a click on the captured inventory button.
+  const blockClick = (click) => click.stopImmediatePropagation();
+  inventoryControl.addEventListener("click", blockClick, { capture: true, once: true });
+  setTimeout(() => inventoryControl.removeEventListener("click", blockClick, true), 0);
+}
+
+for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) {
+  inventoryControl.addEventListener(type, endDrag);
+}
+
+inventoryControl.addEventListener("click", (event) => {
+  const item = event.target.closest("[data-item]");
+  if (item) select(item.dataset.item);
+});
+
+for (const field of [go("hotspots"), go("room-bench")]) {
+  field.addEventListener("click", (event) => {
+    const target = event.target.closest("[data-target]");
+    if (target && !target.disabled) inspectTarget(target);
+  });
 }
 
 document.querySelectorAll("[data-era-control]").forEach((control) => {
-  control.addEventListener("click", () => switchEra(control.dataset.eraControl));
-});
-
-get("clues").addEventListener("click", (event) => {
-  const control = event.target.closest("[data-clue]");
-  if (control) returnFocus = "[data-clue='" + control.dataset.clue + "']";
+  control.addEventListener("click", () => navigate(control.dataset.eraControl));
 });
 
 dialog.addEventListener("close", () => {
-  const control = document.querySelector(returnFocus ?? "#help")
-    ?? document.querySelector('[data-era-control][aria-pressed="true"]');
+  const control = (returnFocus && document.querySelector(returnFocus)) ??
+    go("room-nav").querySelector('[aria-pressed="true"]');
   control?.focus({ preventScroll: true });
-  returnFocus = undefined;
+  returnFocus = null;
 });
 
-get("hint").addEventListener("click", () => {
+dialog.addEventListener("touchend", (event) => {
+  const control = event.target.closest(".close, [data-dismiss]");
+  if (!control || event.changedTouches.length !== 1) return;
+  const { clientX, clientY } = event.changedTouches[0];
+  if (!control.contains(document.elementFromPoint(clientX, clientY))) return;
+  // Modal dismissal still works when a preceding drag suppresses the synthetic click.
+  event.preventDefault();
+  dialog.close();
+}, { passive: false });
+
+go("hint").addEventListener("click", () => {
   returnFocus = "#hint";
-  if (state.stage === 4) ending();
-  else show("Журнал", "Подсказка", make("p", "", chapters[state.stage]?.hint ?? "Открой Терминал ИИ в 2086 году и выбери способ показа письма."));
+  if (state.stage === chapters.length) ending();
+  else show("Дело № 17", "Подсказка", make("p", "", chapters[state.stage][2]));
 });
 
-get("help").addEventListener("click", () => {
+go("help").addEventListener("click", () => {
   returnFocus = "#help";
   show("Управление", "Как играть",
-    make("p", "", "Осматривай предметы, переключайся между 1986 и 2086 годами и сверяй документы в журнале. Если решение зашло в тупик, открой подсказку под сценой."),
-    make("p", "aside", "Клавиши 1 и 2 переключают эпохи, Esc закрывает документ."),
+    make("p", "", "Осматривай предметы и забирай находки. Перетащи вещь из инвентаря на подсвеченный механизм. Можно выбрать вещь нажатием, а затем нажать на механизм."),
+    make("p", "aside", "Клавиши 1 и 2 переключают эпохи. Tab перемещает фокус, Enter и пробел выбирают предмет или цель. Esc закрывает документ или освобождает руку."),
     button("Начать заново…", "choice", () => {
       show("Прогресс", "Начать заново?",
-        make("p", "", "Текущие находки и решения будут сброшены."),
+        make("p", "", "Находки и решения в этом браузере будут сброшены."),
         button("Сбросить прогресс", "choice", () => {
-          state = newGame();
-          save();
-          render();
+          state = fresh();
+          selected = null;
+          update();
+          status("Открой рабочий стол, чтобы взять первый предмет.");
           dialog.close();
         }),
-        button("Продолжить расследование", "primary", () => dialog.close()));
+        dismissButton("Продолжить расследование"));
     }));
 });
 
-get("credits").addEventListener("click", () => {
+go("credits").addEventListener("click", () => {
   returnFocus = "#credits";
-  show("Об игре", "Архив между эпохами",
-    make("p", "", "Вымышленное музейное расследование о трёх подходах к обработке информации: правилах, обучении на примерах и генерации."),
-    make("p", "aside", "Сценарий, код и иллюстрации созданы с участием генеративного ИИ. Классификатор работает в браузере, а музейный терминал показывает заранее написанный сюжетный черновик."));
+  show("О расследовании", "Архив между эпохами",
+    make("p", "", "Вымышленная история об архиве. Игровые этапы показывают, как меняется работа с информацией от ручных правил до машинного обучения и генерации."),
+    make("p", "aside", "Сценарий, код и иллюстрации созданы при участии ИИ. Классификатор сравнивает слова в браузере. Черновик музейной системы создан для сюжета."));
 });
 
 document.addEventListener("keydown", (event) => {
   if (dialog.open || event.altKey || event.ctrlKey || event.metaKey) return;
-  if (event.key === "1") switchEra("past");
-  if (event.key === "2") switchEra("future");
+  if (event.key === "1") navigate("past");
+  if (event.key === "2") navigate("future");
+  if (event.key === "Escape" && selected) select(selected);
 });
 
-save();
-render();
+update();

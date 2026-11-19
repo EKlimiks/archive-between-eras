@@ -4,53 +4,70 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Одиночная игра о письме, которое музейный ИИ восстановил через сто лет.">
-  <meta name="theme-color" content="#101311">
-  <link rel="stylesheet" href="style.css">
+  <meta name="theme-color" content="#010102">
+  <link rel="stylesheet" href="style.css?v=2">
   <title>Архив между эпохами</title>
-  <script src="game.js" defer></script>
+  <script src="game.js?v=2" defer></script>
+  <script src="effects.js" defer></script>
 </head>
-<body data-era="past">
+<body data-era="past" data-room="lab">
   <header class="topbar">
     <div class="shell topbar-inner">
-      <div class="brand"><span class="seal" aria-hidden="true">◒</span><span>Архив между эпохами</span></div>
-      <button class="quiet" id="help" type="button"><span aria-hidden="true">?</span> Как играть</button>
+      <div class="brand"><span class="seal" aria-hidden="true"></span><span>Архив между эпохами</span></div>
+      <div class="topbar-actions">
+        <button class="quiet" id="sound" type="button" aria-label="Звуки игры" aria-pressed="false"><span class="sound-wave" aria-hidden="true"><i></i><i></i><i></i></span><span class="sound-label" aria-hidden="true">Звук</span></button>
+        <button class="quiet" id="help" type="button"><span class="key" aria-hidden="true">?</span> Как играть</button>
+      </div>
     </div>
   </header>
 
   <main class="shell">
     <section class="case-heading" aria-labelledby="case-title">
       <div>
-        <p class="eyebrow" id="case-number">Дело № 17 · Открыто</p>
+        <p class="eyebrow case-tag" id="case-number">Дело № 17 · Открыто</p>
         <h1 id="case-title">Письмо без адреса</h1>
-        <p class="intro" id="intro">Через сто лет музейный ИИ восстановил письмо из архива. Найди оригинал и проверь, что машина добавила от себя.</p>
+        <p class="intro" id="intro">Отыщи потерянное письмо и проверь версию музейного ИИ.</p>
       </div>
-      <ol class="steps" id="steps" aria-label="Ход расследования"></ol>
+      <div class="progress">
+        <p class="eyebrow">Ход расследования</p>
+        <ol class="steps" id="steps" aria-label="Ход расследования"></ol>
+      </div>
     </section>
 
     <div class="game-layout">
       <section class="game" aria-label="Архив">
         <div class="room-bar">
-          <div class="room-location"><span class="lamp" aria-hidden="true"></span><span id="location">Лаборатория архива</span></div>
+          <nav id="room-nav" class="room-nav" aria-label="Локации"></nav>
           <div class="eras" role="group" aria-label="Выбор эпохи">
-            <button type="button" data-era-control="past" aria-pressed="true">1986 <span>прошлое</span></button>
-            <button type="button" data-era-control="future" aria-pressed="false">2086 <span>будущее</span></button>
+            <button type="button" data-era-control="past" aria-pressed="true" aria-keyshortcuts="1">1986 <span>прошлое</span></button>
+            <button type="button" data-era-control="future" aria-pressed="false" aria-keyshortcuts="2">2086 <span>будущее</span></button>
           </div>
         </div>
         <div class="scene">
-          <img src="assets/1986.webp" alt="" width="1536" height="512" class="past-room">
-          <img src="assets/2086.webp" alt="" width="1536" height="512" class="future-room">
+          <img src="assets/1986.webp" id="scene-image-past" alt="" width="1536" height="512" class="past-room" draggable="false">
+          <img src="assets/2086.webp" id="scene-image-future" alt="" width="1536" height="512" class="future-room" draggable="false">
+          <div class="scene-caption"><span class="lamp" aria-hidden="true"></span><span id="location">Лаборатория архива</span></div>
           <div class="hotspots" id="hotspots" aria-label="Предметы в комнате"></div>
         </div>
-        <div class="mission">
-          <div>
-            <p class="eyebrow" id="mission-label">Текущая задача</p>
-            <p id="mission" aria-live="polite"></p>
+        <div class="room-bench" id="room-bench" aria-label="Механизмы"></div>
+        <section class="inventory" aria-labelledby="inventory-title">
+          <div class="inventory-head">
+            <h2 id="inventory-title"><span aria-hidden="true">▧</span> Инвентарь</h2>
+            <span class="inventory-caption">Перетащи предмет или выбери, куда его применить</span>
           </div>
-          <button class="quiet hint" id="hint" type="button">Подсказка</button>
-        </div>
+          <div class="inventory-items" id="inventory-items"></div>
+          <p class="inventory-empty" id="inventory-empty">Осматривай предметы в комнате, чтобы пополнить инвентарь.</p>
+          <p class="inventory-status" id="inventory-status" role="status"></p>
+        </section>
       </section>
 
-      <aside class="journal" aria-labelledby="journal-title">
+      <aside class="sidebar">
+        <section class="mission" aria-labelledby="mission-label">
+          <p class="eyebrow" id="mission-label">Текущая задача</p>
+          <p id="mission" aria-live="polite"></p>
+          <button class="quiet hint" id="hint" type="button"><span aria-hidden="true">✦</span> Подсказка</button>
+        </section>
+        <section class="journal" aria-labelledby="journal-title">
         <div class="journal-header">
           <span class="journal-icon" aria-hidden="true">▤</span>
           <h2 id="journal-title">Журнал находок</h2>
@@ -58,6 +75,7 @@
         </div>
         <ul class="clues" id="clues"></ul>
         <p class="empty" id="empty">Здесь появятся документы, которые ты осмотришь. Их можно перечитать в любой эпохе.</p>
+        </section>
       </aside>
     </div>
     <footer class="footer"><span id="save-status">Прогресс сохраняется в этом браузере</span><button class="text-btn" id="credits" type="button">Об игре</button></footer>

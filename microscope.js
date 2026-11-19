@@ -30,6 +30,8 @@ let validation = "";
 let addingEvidence = false;
 let tab = "home";
 let currentCase;
+let demoStep = 0;
+let demoVerdict = "";
 
 function save() {
   try {
@@ -103,15 +105,13 @@ function caseCard(item) {
 
 function homePage() {
   const count = new Set(state.history.filter((entry) => entry.kind === "practice").map((entry) => entry.caseId)).size;
-  const first = cases.find((item) => !state.history.some((entry) => entry.kind === "practice" && entry.caseId === item.id)) || cases[0];
-  const started = Boolean(state.drafts[first.id] && !state.drafts[first.id].reportId);
-  const startLabel = started ? "Продолжить дело" : "Начать расследование";
   return `<section class="hero">
     <div class="hero-copy">
       <p class="overline">Лаборатория проверки ответов ИИ</p>
       <h1 id="view-title" tabindex="-1">Проверьте,<br>что сказал ИИ<span>.</span></h1>
       <p>Разберите ответ на утверждения. Сверьте их с источниками и решите, что можно использовать.</p>
-      <div class="actions"><a class="btn primary" href="#${count === cases.length ? "practice" : `case/${first.id}`}">${count === cases.length ? "Открыть учебные дела" : startLabel}</a><a class="btn ghost" href="#own">Проверить свой текст</a></div>
+      <div class="actions"><a class="btn primary" href="#demo">Попробовать за 1 минуту</a><a class="btn ghost" href="#own">Проверить свой текст</a></div>
+      <p class="hero-start-note">Первый раз здесь? Начните с короткого примера.</p>
     </div>
     <div class="specimen" aria-hidden="true">
       <div class="specimen-grid"></div>
@@ -135,9 +135,35 @@ function homePage() {
   </section>`;
 }
 
+function demoPage() {
+  const claim = `<div class="demo-document"><span class="overline">Ответ ИИ</span><blockquote>«Встреча состоится в понедельник».</blockquote></div>`;
+  const source = `<div class="demo-document demo-source"><span class="overline">Письмо организатора</span><blockquote>«Встречу переносим на вторник. Время и место остаются прежними».</blockquote></div>`;
+  const title = ["Что сказал ИИ?", "Что написано в письме?", "Разбор примера"][demoStep];
+  const note = [
+    "Представьте, что ИИ подготовил объявление о встрече. Нужно проверить день перед отправкой.",
+    "Прочитайте письмо и сравните его с ответом ИИ. Что можно сказать об ответе?",
+    "Теперь можно исправить объявление и указать вторник.",
+  ][demoStep];
+  const success = demoVerdict === "contradicted";
+  const feedback = success ? "Верно. День в ответе ИИ противоречит письму." : `Вы выбрали «${statuses[demoVerdict]?.label}». Здесь подходит «Противоречит».`;
+  const content = [
+    `${claim}<button type="button" class="btn primary" data-action="demo-open">Открыть письмо организатора</button>`,
+    `<div class="demo-compare">${claim}${source}</div><div class="demo-options" role="group" aria-label="Оцените ответ ИИ">
+      ${Object.entries(statuses).map(([id, status]) => `<button class="btn ghost ${id}" type="button" data-action="demo-answer" data-id="${id}"><span aria-hidden="true">${status.mark}</span> ${status.label}</button>`).join("")}
+    </div>`,
+    `<div class="demo-feedback"><p class="feedback-title">${feedback}</p><p>Организатор прямо написал, что встречу перенесли с первоначального дня на вторник. Письмо даёт основание исправить ответ.</p><blockquote>«Встреча состоится во вторник. Время и место остаются прежними».</blockquote></div>
+    <div class="actions"><a class="btn primary" href="#case/schedule">Открыть первое дело</a><button type="button" class="btn ghost" data-action="demo-reset">Повторить пример</button></div>`,
+  ][demoStep];
+  return `<div class="demo"><a class="crumb" href="#home">К обзору</a>
+    <section class="demo-panel">
+      ${heading(title, note, `Быстрый пример · Шаг ${demoStep + 1} из 3`)}
+      <div class="demo-content">${content}</div>
+    </section></div>`;
+}
+
 function practicePage() {
   return heading("Тренажёр", "Выберите дело, разберите ответ ИИ и получите разбор по каждому утверждению.") +
-    `<div class="practice-tools"><label class="switch-label"><input type="checkbox" data-field="challenge" ${state.challenge ? "checked" : ""}> Новые дела без подсказок</label><span>В документах используются вымышленные учебные ситуации.</span></div>
+    `<div class="practice-tools"><a class="plain-link" href="#demo">Пройти быстрый пример</a><label class="switch-label"><input type="checkbox" data-field="challenge" ${state.challenge ? "checked" : ""}> Новые дела без подсказок</label></div>
     <div class="case-grid">${cases.map(caseCard).join("")}</div>`;
 }
 
@@ -151,9 +177,29 @@ function progress(label, done, total) {
   return `<div class="progress"><span>${label}</span><strong>${done} / ${total}</strong><progress max="${total}" value="${done}" aria-label="${label}"></progress></div>`;
 }
 
+function nextStep(draft, ready) {
+  const selection = draft.selections[activeClaim];
+  let hint = `Откройте документ и нажмите «Прикрепить фрагмент» рядом с подходящей цитатой.`;
+  let action = "focus-sources";
+  let label = "Посмотреть документы";
+  if (ready === draft.selections.length) {
+    hint = "Все утверждения проверены. Теперь перепишите ответ и получите разбор.";
+    action = "focus-editor";
+    label = "Написать свой ответ";
+  } else if (selection.verdict && selection.evidence.length) {
+    hint = `Утверждение ${activeClaim + 1} заполнено. Перейдите к следующему незаполненному утверждению.`;
+    action = "next-incomplete";
+    label = "Следующее утверждение";
+  } else if (selection.evidence.length) {
+    hint = "Цитата приложена. Что она говорит об утверждении: подтверждает, опровергает или данных мало?";
+    action = "focus-verdict";
+    label = "Выбрать вердикт";
+  }
+  return `<div class="next-step"><div><strong>Что делать сейчас</strong><p>${hint}</p></div><button class="btn primary small" type="button" data-action="${action}" id="step-action">${label}</button></div>`;
+}
+
 function practiceWorkspace(item) {
   const draft = state.drafts[item.id];
-  const claim = item.claims[activeClaim];
   const choice = draft.selections[activeClaim];
   const selectedEvidence = evidenceList(item).filter((piece) => choice.evidence.includes(piece.id));
   const ready = draft.selections.filter((selection) => selection.verdict && selection.evidence.length).length;
@@ -163,6 +209,7 @@ function practiceWorkspace(item) {
   return `<a class="crumb" href="#practice">Учебные дела</a>
     ${heading(item.title, item.task, item.category)}
     <div class="case-status">${progress("Утверждения с выводом и источником", ready, item.claims.length)}<span>${draft.challenge ? "Без подсказок" : "С подсказками"}</span></div>
+    ${draft.challenge ? "" : nextStep(draft, ready)}
     <div class="workbench">
       <section class="panel" aria-labelledby="answer-title">
         <div class="panel-heading"><h2 id="answer-title">Черновик ИИ</h2><p>Выберите утверждение для проверки.</p></div>
@@ -184,7 +231,7 @@ function practiceWorkspace(item) {
           return `<div class="excerpt"><blockquote>${piece.text}</blockquote><button id="cite-${piece.id}" class="btn small ${attached ? "attached-button" : "ghost"}" type="button" data-action="evidence" data-id="${piece.id}" aria-pressed="${attached}">${attached ? "✓ Прикреплено" : "Прикрепить фрагмент"}</button></div>`;
         }).join("")}</div>
         ${draft.challenge ? "" : '<p class="source-tip">Смотрите, кто составил документ и когда. Для вывода «Данных мало» приложите фрагмент, который показывает, чего не хватает.</p>'}
-        <div class="source-actions"><button class="text-button" type="button" data-action="focus-claim">К утверждению ${activeClaim + 1}</button>${choice.verdict && choice.evidence.length && activeClaim < item.claims.length - 1 ? '<button class="text-button" type="button" data-action="next-claim">Следующее утверждение</button>' : ""}</div>
+        <div class="source-actions"><button class="text-button" type="button" data-action="${choice.evidence.length && !choice.verdict ? "focus-verdict" : "focus-claim"}">${choice.evidence.length && !choice.verdict ? "Выбрать вердикт" : `К утверждению ${activeClaim + 1}`}</button>${ready === item.claims.length ? '<button class="text-button" type="button" data-action="focus-editor">Написать свой ответ</button>' : choice.verdict && choice.evidence.length ? '<button class="text-button" type="button" data-action="next-incomplete">Следующее утверждение</button>' : ""}</div>
       </section>
     </div>
     <section class="panel editor" aria-labelledby="edit-title">
@@ -297,6 +344,7 @@ function render(focusId) {
   const report = state.history.find((entry) => entry.id === reportId);
   const pages = {
     home: homePage,
+    demo: demoPage,
     practice: practicePage,
     case: () => practiceWorkspace(currentCase),
     own: ownPage,
@@ -307,7 +355,7 @@ function render(focusId) {
   };
   main.dataset.page = tab;
   main.innerHTML = pages[tab]();
-  const section = ({ case: "practice", report: "history" })[tab] || tab;
+  const section = ({ demo: "home", case: "practice", report: "history" })[tab] || tab;
   document.querySelectorAll("[data-nav]").forEach((link) => {
     if (link.dataset.nav === section) link.setAttribute("aria-current", "page");
     else link.removeAttribute("aria-current");
@@ -322,7 +370,7 @@ function navigate(moveFocus = true) {
     return;
   }
   const [route, id] = location.hash.slice(1).split("/");
-  tab = ["home", "practice", "case", "own", "history", "report", "guide", "about"].includes(route) ? route : "home";
+  tab = ["home", "demo", "practice", "case", "own", "history", "report", "guide", "about"].includes(route) ? route : "home";
   currentCase = cases.find((item) => item.id === id);
   if (tab === "case" && !currentCase) tab = "practice";
   if (tab === "report" && !state.history.some((entry) => entry.id === id)) tab = "history";
@@ -331,6 +379,8 @@ function navigate(moveFocus = true) {
     save();
   }
   activeClaim = 0;
+  demoStep = 0;
+  demoVerdict = "";
   openSource = 0;
   addingEvidence = false;
   validation = "";
@@ -459,6 +509,23 @@ function addClaim() {
 }
 
 const actions = {
+  "demo-open"() {
+    demoStep = 1;
+    render("view-title");
+    window.scrollTo(0, 0);
+  },
+  "demo-answer"(button) {
+    demoVerdict = button.dataset.id;
+    demoStep = 2;
+    render("view-title");
+    window.scrollTo(0, 0);
+  },
+  "demo-reset"() {
+    demoStep = 0;
+    demoVerdict = "";
+    render("view-title");
+    window.scrollTo(0, 0);
+  },
   claim(button) {
     activeClaim = Number(button.dataset.id);
     addingEvidence = false;
@@ -470,8 +537,10 @@ const actions = {
   },
   "focus-sources": () => focus("sources-title"),
   "focus-claim": () => focus(`claim-select-${activeClaim}`),
-  "next-claim"() {
-    activeClaim++;
+  "focus-verdict": () => main.querySelector('[name="verdict"]:checked, [name="verdict"]').focus(),
+  "focus-editor": () => focus("practice-rewrite"),
+  "next-incomplete"() {
+    activeClaim = state.drafts[currentCase.id].selections.findIndex((selection) => !selection.verdict || !selection.evidence.length);
     render(`claim-select-${activeClaim}`);
   },
   evidence: (button) => attachExcerpt(button.dataset.id, button.id),

@@ -124,6 +124,7 @@ legend { padding: 0; margin-bottom: 10px; font-weight: 650; }
 .hero h1 { font-size: clamp(2.7rem, 5vw, 4.75rem); font-weight: 730; letter-spacing: -.043em; line-height: .98; margin-top: 17px; }
 .hero h1 span { color: var(--accent); }
 .hero-copy > p:not(.overline) { max-width: 400px; margin-block: 21px 25px; font-size: 1.12rem; color: #d0dfd0; }
+.hero-copy > p.hero-start-note { margin-block: 9px 0; font-size: .93rem; color: var(--muted); }
 .specimen { position: relative; min-height: 318px; align-self: stretch; user-select: none; overflow: hidden; background: radial-gradient(ellipse at 52% 49%, #38564180, transparent 66%); }
 .specimen-grid { position: absolute; inset: 0; background-image: linear-gradient(#b8e9ab13 1px, transparent 1px), linear-gradient(90deg,#b8e9ab13 1px,transparent 1px); background-size: 34px 34px; mask-image: radial-gradient(ellipse, #000, transparent 72%); }
 .specimen-orbit { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); aspect-ratio: 1; border: 1px solid #9bc78d25; border-radius: 50%; }
@@ -195,6 +196,23 @@ progress::-webkit-progress-bar { border-radius: 12px; background: var(--line); }
 progress::-webkit-progress-value { border-radius: 12px; background: var(--accent); transition: width .2s ease; }
 progress::-moz-progress-bar { border-radius: 12px; background: var(--accent); }
 .case-status > span { padding-left: 11px; border-left: 1px solid var(--line); font-size: .85rem; }
+
+.demo { max-width: 950px; margin-inline: auto; }
+.demo-panel { padding: clamp(19px, 4.5vw, 50px); border: 1px solid #526f53; border-radius: 16px; background: linear-gradient(135deg, #203528, var(--surface) 65%); }
+.demo-panel .page-heading { margin-bottom: 21px; }
+.demo-content { display: grid; gap: 18px; justify-items: start; animation: appear .22s ease both; }
+.demo-document { width: 100%; padding: 15px 17px; border-radius: 8px; background: var(--deep); border-left: 3px solid var(--line-strong); }
+.demo-source { border-left-color: var(--accent); }
+.demo-document blockquote, .demo-feedback blockquote { margin-top: 5px; font-size: clamp(1.07rem, 2.4vw, 1.34rem); line-height: 1.4; }
+.demo-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+.demo-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.demo-options .btn span { color: var(--signal); margin-right: 7px; }
+.demo-feedback { max-width: 710px; }
+.demo-feedback .feedback-title { font-size: 1.17rem; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
+.demo-feedback blockquote { padding: 10px 13px; border-left: 3px solid var(--accent); background: var(--deep); border-radius: 5px; }
+.next-step { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px; padding: 11px 13px; margin-bottom: 13px; border: 1px solid #587456; border-radius: 9px; background: #203427; }
+.next-step strong { color: var(--accent); }
+.next-step p { line-height: 1.38; margin-top: 2px; }
 
 .workbench { display: grid; grid-template-columns: 1.06fr .94fr; align-items: start; gap: 14px; }
 .panel { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); min-width: 0; }
@@ -312,6 +330,8 @@ progress::-moz-progress-bar { border-radius: 12px; background: var(--accent); }
   .hero-copy { padding: 26px 22px 2px; }
   .hero h1 { font-size: clamp(2.35rem, 9vw, 3.6rem); }
   .hero-copy > p:not(.overline) { font-size: 1rem; margin-block: 14px 17px; }
+  .hero-copy > p.hero-start-note { margin-block: 9px 0; font-size: .93rem; }
+  .demo-compare { grid-template-columns: 1fr; }
   .specimen { min-height: 239px; max-width: 435px; width: 100%; justify-self: center; }
   .specimen-lens { width: min(40%, 137px); }
   .orbit-outer { width: 205px; }

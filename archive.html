@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Одиночное расследование в двух эпохах. Восстанови письмо, проверь музейную сводку и реши, что попадёт на выставку.">
+  <meta name="theme-color" content="#1b201e">
+  <link rel="stylesheet" href="style.css?v=4">
+  <title>Архив между эпохами</title>
+  <script src="game.js?v=4" defer></script>
+  <script src="menu.js?v=4" defer></script>
+</head>
+<body data-era="past" data-room="lab" data-view="menu">
+  <header class="topbar">
+    <div class="shell topbar-inner">
+      <div class="brand"><span class="seal" aria-hidden="true"><i></i><i></i><i></i></span><span>Архив между эпохами</span></div>
+    </div>
+  </header>
+
+  <main class="shell menu-screen" id="main-menu" aria-labelledby="menu-title">
+    <section class="cover-art">
+      <div class="cover-content">
+        <p class="menu-kicker"><span></span> Одиночное расследование</p>
+        <h1 id="menu-title" tabindex="-1">Письмо<br>без адреса</h1>
+        <p class="cover-intro">В 2086 году музей готовится рассказать историю Лиды Ветровой. Единственное письмо, на котором основана эта история, пропало из каталога сто лет назад.</p>
+        <div class="menu-actions">
+          <button type="button" class="hero-button" id="start-game">Открыть дело</button>
+          <button type="button" class="cover-button" id="read-prologue">Предыстория</button>
+        </div>
+        <p class="menu-progress" id="menu-progress" hidden></p>
+      </div>
+      <p class="cover-eras"><span>1986</span><i></i><span>2086</span></p>
+    </section>
+    <footer class="menu-footer">
+      <span>Играй мышью, касанием или клавиатурой</span>
+      <a class="text-btn" href="index.html">К лаборатории</a>
+      <button class="text-btn" id="menu-credits" type="button">О проекте</button>
+    </footer>
+    <noscript><p class="browser-note">Чтобы играть, включи JavaScript в браузере.</p></noscript>
+  </main>
+
+  <main class="shell game-screen" id="game-view" hidden>
+    <section class="case-heading" aria-labelledby="case-title">
+      <div>
+        <p class="eyebrow case-tag" id="case-number">Дело № 17</p>
+        <h1 id="case-title" tabindex="-1">Письмо без адреса</h1>
+      </div>
+      <div class="game-controls">
+        <div class="topbar-actions" role="group" aria-label="Управление игрой">
+          <button class="quiet" id="back-menu" type="button">В меню</button>
+          <button class="quiet" id="help" type="button">Как играть</button>
+          <button class="quiet fullscreen" id="fullscreen" type="button" aria-pressed="false"><span class="fullscreen-icon" aria-hidden="true"></span><span id="fullscreen-label">Игра на весь экран</span></button>
+        </div>
+        <ol class="steps" id="steps" aria-label="Ход расследования"></ol>
+      </div>
+    </section>
+
+    <div class="game-layout">
+      <section class="game" aria-label="Архив">
+        <div class="room-bar">
+          <nav id="room-nav" class="room-nav" aria-label="Локации"></nav>
+          <div class="time-controls">
+            <div class="eras" role="group" aria-label="Выбор эпохи">
+              <button type="button" data-era-control="past" aria-pressed="true" aria-keyshortcuts="1">1986 <span>прошлое</span></button>
+              <button type="button" data-era-control="future" aria-pressed="false" aria-keyshortcuts="2">2086 <span>будущее</span></button>
+            </div>
+            <button class="quiet compare-toggle" id="compare" type="button" aria-pressed="false" aria-controls="compare-controls"><span aria-hidden="true">◫</span> Сравнить эпохи</button>
+          </div>
+        </div>
+        <div class="scene" id="scene">
+          <img src="assets/1986.webp" id="scene-image-past" alt="" width="1536" height="512" class="past-room" draggable="false">
+          <img src="assets/2086.webp" id="scene-image-future" alt="" width="1536" height="512" class="future-room" draggable="false">
+          <div class="scene-caption"><span class="lamp" aria-hidden="true"></span><span id="location">Лаборатория архива</span></div>
+          <div class="hotspots" id="hotspots" aria-label="Предметы в комнате"></div>
+          <div class="compare-surface" id="compare-surface" aria-hidden="true" hidden>
+            <div class="compare-split"><span>‹ ›</span></div>
+          </div>
+          <div class="scene-transit" id="scene-transit" aria-hidden="true"><span></span></div>
+        </div>
+        <div class="compare-controls" id="compare-controls" hidden>
+          <div class="compare-range">
+            <span aria-hidden="true">1986</span>
+            <input id="compare-range" type="range" min="0" max="100" value="50" aria-label="Граница между прошлым и будущим" aria-describedby="compare-note">
+            <span aria-hidden="true">2086</span>
+          </div>
+          <p id="compare-note" role="status">Проведи границу в обе стороны, чтобы сверить два снимка.</p>
+          <button class="quiet" id="compare-evidence" type="button" hidden>Зафиксировать наблюдение</button>
+        </div>
+        <div class="room-bench" id="room-bench" aria-label="Механизмы"></div>
+        <section class="inventory" aria-labelledby="inventory-title">
+          <div class="inventory-head">
+            <h2 id="inventory-title"><span aria-hidden="true">▧</span> Инвентарь</h2>
+            <span class="inventory-caption">Перетащи предмет или выбери, куда его применить</span>
+          </div>
+          <div class="inventory-items" id="inventory-items"></div>
+          <p class="inventory-empty" id="inventory-empty">Осматривай предметы в комнате, чтобы пополнить инвентарь.</p>
+          <p class="inventory-status" id="inventory-status" role="status"></p>
+        </section>
+      </section>
+
+      <aside class="sidebar">
+        <section class="mission" aria-labelledby="mission-label">
+          <p class="eyebrow" id="mission-label">Текущая задача</p>
+          <p id="mission" aria-live="polite"></p>
+          <button class="quiet hint" id="hint" type="button"><span aria-hidden="true">✦</span> Подсказка</button>
+        </section>
+        <section class="journal" aria-labelledby="journal-title">
+          <div class="journal-header">
+            <span class="journal-icon" aria-hidden="true">▤</span>
+            <h2 id="journal-title">Журнал находок</h2>
+            <span id="clue-count" class="count">0</span>
+          </div>
+          <ul class="clues" id="clues"></ul>
+          <p class="empty" id="empty">Осмотренные документы можно перечитать здесь в любой эпохе.</p>
+        </section>
+      </aside>
+    </div>
+    <footer class="footer"><span id="save-status">Прогресс сохраняется в этом браузере</span><button class="text-btn" id="credits" type="button">Об игре</button></footer>
+    <p class="sr-only" id="view-status" role="status"></p>
+  </main>
+
+  <div id="overlay-home">
+    <dialog id="overlay" aria-labelledby="dialog-title">
+    <div class="dialog-head">
+      <div><p class="eyebrow" id="dialog-kicker"></p><h2 id="dialog-title"></h2></div>
+      <form method="dialog"><button class="close" type="submit" aria-label="Закрыть">×</button></form>
+    </div>
+    <div id="dialog-body" class="dialog-body"></div>
+    </dialog>
+  </div>
+</body>
+</html>

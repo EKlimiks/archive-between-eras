@@ -15,6 +15,9 @@ const records = {
   decision: ["Редакционная запись", "2086", "Лаборатория № 3 в письме не упоминается. Точный адрес неизвестен."],
   opening: ["Очередь на печать", "2086", "Выставка «Город говорит» открывается завтра. Неизвестная прежде сотрудница лаборатории впервые получит свою табличку.\n\nСлужебная пометка: «Основание — один архивный фрагмент. Оригинал пока не сверен»."],
   archiveNote: ["Записка Лиды к коробке писем", "1986", "«В этой коробке соседские письма, рецепты, просьбы забрать ключи. Возьмите и смешные записки тоже. Когда нас здесь уже не будет, по ним можно будет услышать город».\nЛ. Ветрова"],
+  traceLab: ["След времени · Лаборатория", "Сверка", "У окна, где стоял старый сортировщик, теперь музейная витрина. Одно и то же помещение меняло назначение. Сам по себе номер комнаты мало говорит о том, что в ней происходило."],
+  traceWorkshop: ["След времени · Мастерская", "Сверка", "Световой стол и оптический сканер стоят там, где из окна удобнее всего работать со светом. Когда лист разделили, реставратор пометил части ○ и ◇. Эти знаки относятся к бумаге, а не к её содержанию."],
+  traceVault: ["След времени · Хранилище", "Сверка", "Место, где принимали повреждённые бумаги, превратилось в место, где их показывают публике. Между этими событиями лежит цепочка решений. Её следы остались в описи и на обороте письма."],
 };
 const items = {
   folder: ["▤", "Папка дела № 17"], route: ["Л", "Маршрутная карта Л"],
@@ -61,6 +64,7 @@ const routes = {
   original: ["scanner"], stamp: ["study", "sample14", "sample17", "sample22"],
   scan: ["terminal", ...claims.map(([id]) => id)], label: ["display", "displaySource", "displayCompare"],
 };
+const roomTraces = { lab: "traceLab", workshop: "traceWorkshop", vault: "traceVault" };
 const fresh = () => ({
   era: "past", room: "lab", stage: 0, clues: [], inventory: [],
   lit: false, topPlaced: false, bottomPlaced: false, verdict: null,
@@ -70,6 +74,11 @@ let state = load();
 let selected = null;
 let drag = null;
 let returnFocus = null;
+let rendered = false;
+let comparison = false;
+let comparedPast = false;
+let comparedFuture = false;
+let transition;
 
 function load() {
   try {
@@ -127,13 +136,70 @@ function update() {
 }
 
 function navigate(era, room = state.room) {
+  const changedRoom = room !== state.room;
+  const changedEra = era !== state.era;
+  if (!changedRoom && changedEra) setComparison(false);
   state.era = era;
   state.room = room;
   update();
+  if (comparison) {
+    if (changedRoom) resetComparison();
+  } else if (changedRoom || changedEra) {
+    animateScene(changedEra ? years[era] : "");
+  }
   status(selected ? "В руке: " + items[selected][1] : "Открыто помещение: " + rooms[room][era][0]);
 }
 
+function animateScene(year) {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const layer = go("scene-transit");
+  layer.firstElementChild.textContent = year;
+  transition?.cancel();
+  transition = layer.animate(year
+    ? [{ opacity: 0 }, { opacity: 1, offset: .30 }, { opacity: 0 }]
+    : [{ opacity: .48 }, { opacity: 0 }],
+  { duration: year ? 570 : 250, easing: "ease-out" });
+}
+
+function syncComparison() {
+  const range = go("compare-range");
+  const value = Number(range.value);
+  range.setAttribute("aria-valuetext", "1986: " + value + "%, 2086: " + (100 - value) + "%");
+  go("scene").style.setProperty("--split", value + "%");
+  comparedPast ||= value >= 74;
+  comparedFuture ||= value <= 26;
+  const ready = comparedPast && comparedFuture;
+  const saved = state.clues.includes(roomTraces[state.room]);
+  go("compare-evidence").hidden = !ready && !saved;
+  go("compare-evidence").textContent = saved ? "Открыть наблюдение" : "Зафиксировать наблюдение";
+  const message = saved ? "Наблюдение сохранено в журнале."
+    : ready ? "Снимки сверены. Теперь можно записать наблюдение."
+    : comparedPast ? "Кадр 1986 года осмотрен. Открой больше будущего."
+    : comparedFuture ? "Кадр 2086 года осмотрен. Открой больше прошлого."
+    : "Проведи границу в обе стороны, чтобы сверить два снимка.";
+  if (go("compare-note").textContent !== message) go("compare-note").textContent = message;
+}
+
+function resetComparison() {
+  comparedPast = false;
+  comparedFuture = false;
+  go("compare-range").value = 50;
+  syncComparison();
+}
+
+function setComparison(active) {
+  comparison = active;
+  go("compare").setAttribute("aria-pressed", String(active));
+  go("scene").classList.toggle("is-comparing", active);
+  go("compare-controls").hidden = !active;
+  go("compare-surface").hidden = !active;
+  go("hotspots").hidden = active;
+  if (active) resetComparison();
+}
+
 function render() {
+  const previousItems = new Set([...go("inventory-items").querySelectorAll("[data-item]")].map((node) => node.dataset.item));
+  const previousClues = new Set([...go("clues").querySelectorAll("[data-clue]")].map((node) => node.dataset.clue));
   const [location, objects] = rooms[state.room][state.era];
   const step = chapters[state.stage];
   document.body.dataset.era = state.era;
@@ -181,7 +247,7 @@ function render() {
   go("empty").hidden = state.clues.length > 0;
   go("clues").replaceChildren(...state.clues.map((id) => {
     const [title, era] = records[id];
-    const node = make("li");
+    const node = make("li", rendered && !previousClues.has(id) ? "new-clue" : "");
     const control = button(title, "clue", () => {
       returnFocus = '[data-clue="' + id + '"]';
       record(id);
@@ -194,7 +260,7 @@ function render() {
   go("inventory-empty").hidden = state.inventory.length > 0;
   go("inventory-items").replaceChildren(...state.inventory.map((id) => {
     const [icon, title] = items[id];
-    const control = button("", "inventory-item");
+    const control = button("", rendered && !previousItems.has(id) ? "inventory-item new-item" : "inventory-item");
     control.dataset.item = id;
     control.style.touchAction = "none";
     const glyph = make("span", "item-icon", icon);
@@ -204,6 +270,7 @@ function render() {
   }));
   renderBench();
   highlights();
+  rendered = true;
 }
 
 function renderBench() {
@@ -224,10 +291,19 @@ function renderBench() {
     rows = [["displaySource", "Витрина письма", "Проверенные сведения"], ["displayCompare", "Витрина сравнения", "Письмо и черновик"]];
   }
   const bench = go("room-bench");
+  const restoration = rows.some(([id]) => id === "slotTop");
+  bench.classList.toggle("restoration-bench", restoration);
+  bench.classList.toggle("light-on", restoration && state.lit);
   bench.replaceChildren(...rows.map(([id, title, detail, disabled]) => {
     const control = button("", "bench-target");
     control.dataset.target = id;
     control.disabled = Boolean(disabled);
+    if (restoration) {
+      const piece = make("span", "machine-piece", id === "slotTop" ? "○" : id === "slotBottom" ? "◇" : "◐");
+      piece.setAttribute("aria-hidden", "true");
+      control.dataset.filled = String(Boolean(disabled));
+      control.append(piece);
+    }
     control.append(make("span", "target-name", title), make("span", "target-detail", detail));
     return control;
   }));
@@ -420,22 +496,35 @@ function words(text) {
   return new Set(text.toLowerCase().match(/[а-яё]+/gu));
 }
 
-function classify(corrected) {
+function rankExamples(corrected) {
   const terms = words(query);
-  const ranked = examples.map(([id, text, label]) => {
+  return examples.map(([id, text, label]) => {
     const termsInExample = words(text);
     const common = [...terms].filter((word) => termsInExample.has(word)).length;
     const all = new Set([...terms, ...termsInExample]).size;
-    return { label: corrected && id === "sample17" ? "Личное письмо" : label, score: common / all };
+    return { id, label: corrected && id === "sample17" ? "Личное письмо" : label, score: common / all };
   }).sort((left, right) => right.score - left.score);
-  return ranked[0].label;
+}
+
+function classify(corrected) {
+  return rankExamples(corrected)[0].label;
 }
 
 function study() {
   const list = make("ol", "evidence");
-  for (const [id, text, label] of examples) {
+  const ranking = rankExamples(state.stage > 3);
+  for (const [id, text] of examples) {
+    const example = ranking.find((candidate) => candidate.id === id);
+    const percent = Math.round(example.score * 100);
     const row = make("li", "", "«" + text + "»");
-    row.append(make("div", "sample-tag", state.stage > 3 && id === "sample17" ? "Личное письмо" : label));
+    const summary = make("div", "sample-summary");
+    summary.append(make("span", "sample-tag", example.label), make("span", "", percent + "% общих слов"));
+    const meter = make("div", "sample-meter");
+    const fill = make("span");
+    fill.style.width = percent + "%";
+    meter.setAttribute("aria-hidden", "true");
+    meter.append(fill);
+    row.append(summary, meter);
     list.append(row);
   }
   show("2086 · Мастерская", "Учебная выборка",
@@ -463,8 +552,20 @@ function ending() {
   const lastLine = state.verdict === "displayCompare"
     ? "«Теперь я вижу, как легко придумать человеку чужую жизнь»."
     : "«Адреса мы так и не узнали. Зато на выставке наконец слышно Лиду».";
+  const exhibit = make("div", "display-exhibit");
+  const original = make("section", "exhibit-card");
+  original.append(make("h3", "eyebrow", "Письмо · 1986"),
+    make("p", "", "«Пусть люди через сто лет узнают, о чём мы говорили в самый обыкновенный день»."), make("p", "aside", "Лида Ветрова"));
+  exhibit.append(original);
+  if (state.verdict === "displayCompare") {
+    const draft = make("section", "exhibit-card exhibit-draft");
+    draft.append(make("h3", "eyebrow", "Черновик · 2086"),
+      make("p", "", "«Её ждали в лаборатории № 3 на втором этаже»."), make("p", "aside", "Номер лаборатории отсутствует в письме"));
+    exhibit.append(draft);
+  }
   show("2086 · Выставка открыта", "Город говорит",
     make("p", "", outcome),
+    exhibit,
     make("blockquote", "document", "Из книги отзывов\n" + lastLine),
     dismissButton("Вернуться в архив"));
 }
@@ -529,7 +630,9 @@ function scrollWhileDragging(current) {
   const margin = 52;
   const scroll = current.y < margin ? -9 : current.y > window.innerHeight - margin ? 9 : 0;
   if (scroll) {
-    window.scrollBy(0, scroll);
+    const gameView = go("game-view");
+    if (document.fullscreenElement === gameView || gameView.classList.contains("focus-mode")) gameView.scrollBy(0, scroll);
+    else window.scrollBy(0, scroll);
     dragTarget(current);
   }
   current.frame = requestAnimationFrame(() => scrollWhileDragging(current));
@@ -555,7 +658,7 @@ inventoryControl.addEventListener("pointermove", (event) => {
     drag.ghost.append(make("span", "item-icon", icon), make("span", "item-name", label));
     drag.ghost.style.pointerEvents = "none";
     drag.ghost.setAttribute("aria-hidden", "true");
-    document.body.append(drag.ghost);
+    go("game-view").append(drag.ghost);
     document.body.classList.add("dragging-item");
     const current = drag;
     current.frame = requestAnimationFrame(() => scrollWhileDragging(current));
@@ -613,6 +716,28 @@ document.querySelectorAll("[data-era-control]").forEach((control) => {
   control.addEventListener("click", () => navigate(control.dataset.eraControl));
 });
 
+go("compare").addEventListener("click", () => setComparison(!comparison));
+go("compare-range").addEventListener("input", syncComparison);
+const comparisonSurface = go("compare-surface");
+function moveBoundary(event) {
+  const bounds = comparisonSurface.getBoundingClientRect();
+  go("compare-range").value = Math.max(0, Math.min(100, Math.round((event.clientX - bounds.left) / bounds.width * 100)));
+  syncComparison();
+}
+comparisonSurface.addEventListener("pointerdown", (event) => {
+  if (!event.isPrimary || event.button !== 0) return;
+  comparisonSurface.setPointerCapture(event.pointerId);
+  moveBoundary(event);
+});
+comparisonSurface.addEventListener("pointermove", (event) => {
+  if (comparisonSurface.hasPointerCapture(event.pointerId)) moveBoundary(event);
+});
+go("compare-evidence").addEventListener("click", () => {
+  returnFocus = "#compare-evidence";
+  record(roomTraces[state.room]);
+  syncComparison();
+});
+
 dialog.addEventListener("close", () => {
   const control = (returnFocus && document.querySelector(returnFocus)) ??
     go("room-nav").querySelector('[aria-pressed="true"]');
@@ -640,6 +765,7 @@ go("help").addEventListener("click", () => {
   returnFocus = "#help";
   show("Управление", "Как играть",
     make("p", "", "Осматривай предметы и забирай находки. Перетащи вещь из инвентаря на подсвеченный механизм. Можно выбрать вещь нажатием, а затем нажать на механизм."),
+    make("p", "aside", "«Сравнить эпохи» совмещает два снимка комнаты. Проведи границу в обе стороны, чтобы добавить наблюдение в журнал."),
     make("p", "aside", "Клавиши 1 и 2 переключают эпохи. Tab перемещает фокус, Enter и пробел выбирают предмет или цель. Esc закрывает документ или освобождает руку."),
     button("Начать заново…", "choice", () => {
       show("Прогресс", "Начать заново?",
@@ -647,6 +773,7 @@ go("help").addEventListener("click", () => {
         button("Сбросить прогресс", "choice", () => {
           state = fresh();
           selected = null;
+          setComparison(false);
           update();
           status("Открой рабочий стол, чтобы взять первый предмет.");
           dialog.close();

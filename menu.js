@@ -2,7 +2,6 @@
   const menu = go("main-menu");
   const game = go("game-view");
   const start = go("start-game");
-  const help = go("help");
   const back = go("back-menu");
   const fullscreen = go("fullscreen");
   const viewStatus = go("view-status");
@@ -25,10 +24,12 @@
   function switchView(play) {
     menu.hidden = play;
     game.hidden = !play;
-    back.hidden = !play;
-    help.hidden = !play;
+    (play ? game : go("overlay-home")).append(dialog);
     document.body.dataset.view = play ? "game" : "menu";
-    if (!play) updateMenu();
+    if (!play) {
+      setComparison(false);
+      updateMenu();
+    }
     window.scrollTo(0, 0);
     go(play ? "case-title" : "menu-title").focus({ preventScroll: true });
   }
@@ -62,29 +63,41 @@
     else prologue("start-game");
   });
   go("read-prologue").addEventListener("click", () => prologue("read-prologue"));
-  back.addEventListener("click", () => switchView(false));
+  back.addEventListener("click", async () => {
+    if (document.fullscreenElement === game) {
+      try {
+        await document.exitFullscreen();
+      } catch {
+        viewStatus.textContent = "Нажми Esc, затем вернись в меню.";
+        return;
+      }
+    }
+    game.classList.remove("focus-mode");
+    updateFullscreen();
+    switchView(false);
+  });
   go("menu-credits").addEventListener("click", () => showCredits("menu-credits"));
 
   function updateFullscreen() {
-    const active = !!document.fullscreenElement || document.body.classList.contains("focus-mode");
+    const active = document.fullscreenElement === game || game.classList.contains("focus-mode");
     fullscreen.setAttribute("aria-pressed", String(active));
-    go("fullscreen-label").textContent = active ? "Выйти из полного экрана" : "На весь экран";
+    go("fullscreen-label").textContent = active ? "Выйти из полного экрана" : "Игра на весь экран";
   }
 
   fullscreen.addEventListener("click", async () => {
-    if (document.fullscreenElement) {
+    if (document.fullscreenElement === game) {
       await document.exitFullscreen().catch(() => {
         viewStatus.textContent = "Для выхода из полноэкранного режима нажми Esc.";
       });
-    } else if (document.body.classList.contains("focus-mode")) {
-      document.body.classList.remove("focus-mode");
+    } else if (game.classList.contains("focus-mode")) {
+      game.classList.remove("focus-mode");
       viewStatus.textContent = "";
     } else {
       try {
         if (!document.fullscreenEnabled) throw new Error("Native fullscreen unavailable");
-        await document.documentElement.requestFullscreen();
+        await game.requestFullscreen();
       } catch {
-        document.body.classList.add("focus-mode");
+        game.classList.add("focus-mode");
         viewStatus.textContent = "Игра развёрнута в окне браузера.";
       }
     }
@@ -94,8 +107,8 @@
   document.addEventListener("fullscreenchange", updateFullscreen);
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape" || dialog.open) return;
-    if (document.body.classList.contains("focus-mode")) {
-      document.body.classList.remove("focus-mode");
+    if (game.classList.contains("focus-mode")) {
+      game.classList.remove("focus-mode");
       updateFullscreen();
     }
   });
